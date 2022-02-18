@@ -10,15 +10,45 @@
  */
 class Singleton {
     
+    /**
+     * Use constants for immutable types instead of variables
+     * Use descriptive names
+     */
+    const STRING_A      = 'A';
+    const STRING_A_LONG = 'stringA';
+    const STRING_B_LONG = 'stringB';
+    const STRING_NON_A  = '^A';
+    const STRING_NON_B  = '^B';
+    const STRING_NON_C  = '^C';
+    const STRING_ABC    = 'ABC';
+    const INT_A         = 1;
+    const INT_B         = 2;
+    
+    /**
+     * Directory where users have read-only access to certain file types
+     */
+    const PATH_FILES = '/real/path/to/files';
+    
+    /**
+     * Instance of Singleton
+     * 
+     * @var Singleton
+     */
     private static $instance = null;
-    // @TODO Implement Singleton functionality
-    public static function getInstance(){
-        if (self::$instance === null) {
+    
+    /**
+     * Describe your methods
+     * 
+     * @return Singleton
+     */
+    public static function getInstance() {
+        // Constants before variables
+        if (null === self::$instance) {
             self::$instance = new Singleton();
         }
+        
         return self::$instance;
     }
-    // Singleton::getInstance()
 
     /**
      * Display user name
@@ -26,7 +56,7 @@ class Singleton {
      * @param string $name User-provided name
      */
     public function userEcho($name) {
-        // @TODO Validate & sanitize $name
+        // Prevent XSS
         $name = htmlspecialchars($name ?? '');
         echo "The value of 'name' is '{$name}'";
     }
@@ -37,8 +67,11 @@ class Singleton {
      * @param string $name User-provided name
      */
     public function userQuery($name) {
-        // @TODO Validate & sanitize $name
-        mysql_query("SELECT * FROM `test` WHERE `name` = ? LIMIT 1",[$name]);
+        // Prevent SQL with
+        $name = mysql_real_escape_string($name);
+        
+        // Invalid use of function; mysql_query second argument is a resource
+        mysql_query("SELECT * FROM `test` WHERE `name` = '{$name}' LIMIT 1");
     }
     
     /**
@@ -47,31 +80,48 @@ class Singleton {
      * @param string $path User-provided file path
      */
     public function userFile($path) {
-        // @TODO Validate & sanitize $path
-        if (!file_exists($path)) {
-            return false;
-        } else {
-            readfile($path);
+        // User paths are relative to this root
+        $root = self::PATH_FILES;
+
+        // The main point is to never allow users to perform directory traversal
+        // Special characters like "." and ".." and direct root access should be forbidden
+        // Validate relative path, file name and extension
+        if (!preg_match('%^(?:allowed_subpath_a|allowed_subpath_b)\/\w+\.(?:ext|png|jpe?g)$%i', $path)) {
+            throw new Exception('Invalid file path');
         }
+
+        // File not found; also check that it's a file, not a directory
+        if (!is_file("$root/$path")) {
+            throw new Exception('File not found');
+        }
+
+        readfile("$root/$path");
     }
     
     /**
      * Nested conditions
      */
     public function nestedConditions() {
-        // @TODO Untangle nested conditions
-        if($conditionA && $conditionB && $conditionC){
-            echo 'ABC';
-        }
-        if($conditionA && $conditionB && !$conditionC){
-            echo '^C';
-        }
-        if($conditionA && !$conditionB){
-            echo '^B';
-        }
-        if(!$conditionA){
-            echo '^A';
-        }
+        // Don't introduce new constants
+        // The do {} while(false) technique avoids multiple returns
+        do {
+            if (!$conditionA) {
+                echo self::STRING_NON_A;
+                break;
+            }
+
+            if (!$conditionB) {
+                echo self::STRING_NON_B;
+                break;
+            }
+
+            if (!$conditionC) {
+                echo self::STRING_NON_C;
+                break;
+            }
+
+            echo self::STRING_ABC;
+        } while(false);
     }
     
     /**
@@ -80,63 +130,49 @@ class Singleton {
      * @return boolean
      */
     public function returnStatements() {
-        // @TODO Fix
+        // Don't alter the function behavior; one return per function
         if ($conditionA) {
-            //echo 'A';
-            return true;
-        } else {
-            return false;
+            echo self::STRING_A;
         }
+
+        // Implicit boolean conversion
+        return !!$conditionA;
     }
     
     /**
      * Null coalescing
      */
     public function nullCoalescing() {
-        // @TODO Simplify
-        $name = $_GET['name'] ?? $_POST['name'] ?? 'nobody';
-        return $name;
+        return $_GET['name'] ?? $_POST['name'] ?? 'nobody';
     }
     
     /**
      * Method chaining
      */
     public function methodChained() {
-        // @TODO Implement method chaining
-        $this->setTitle('title')->setColor('red');
-    }
-
-    public function setTitle($title){
-        //$this->title = $title;
         return $this;
     }
-
-    public function setColor($color){
-         //$this->color = $color;
-        return $this;
-    }
-
-
-
     
     /**
      * Immutables are hard to find
      */
     public function checkValue($value) {
         $result = null;
-        
-        // @TODO Make all the immutable values (int, string) in this class 
-        // easily replaceable
+
+        // We should't use constants (strings, ints) locally
+        // Store them as class constants instead
         switch ($value) {
-            case 'stringA':
-                $result = 1;
+            case self::STRING_A_LONG:
+                $result = self::INT_A;
                 break;
-                
-            case 'stringB':
-                $result = 2;
+
+            case self::STRING_B_LONG:
+                $result = self::INT_B;
                 break;
+
+            // The default is already set, its' null
         }
-        
+
         return $result;
     }
     
@@ -147,8 +183,11 @@ class Singleton {
      * @return boolean
      */
     public function regexTest($time24Hour) {
-        // @TODO Implement RegEx and return type; validate & sanitize input
-        return preg_match('/^([01][0-9]|2[0-3]):([0-5][0-9])(:([0-5][0-9]))?$/', $time24Hour);
+        // \d instead of [0-9]
+        // DRY - don't repeat yourself, the 00-59 minute/second block can appear once or twice
+        // Don't use capturing blocks if you don't need them - (?:) instead of ()
+        // preg_match returns 0,1 or false; expected return value is boolean
+        return !!preg_match('/^(?:[01]\d|2[0-3])(:[0-5]\d){1,2}$/', $time24Hour);
     }
     
 }
